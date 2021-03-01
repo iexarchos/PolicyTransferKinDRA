@@ -1,0 +1,29 @@
+Commands:
+
+To train a Kinematics Universal Policy (Kin-UP):
+
+python train_policy.py --env-name "QuadrupedBulletScaledEnv-v4" --algo ppo --use-gae --log-interval 10  --num-steps 1500  --num-processes 8  --lr 3e-4 --entropy-coef 0 --ppo-epoch 10 --num-mini-batch 32 --gamma 0.99  --gae-lambda 0.95 --num-env-steps 10000000 --use-linear-lr-decay   --clip-param 0.2  --use-proper-time-limits --save-dir  test --seed 1 --act_noise 1 --obs_noise 1   --max_tar_vel 20  --energy_weight 0.1 --ab 4.5 --q_pen_weight 0.35  --dq_pen_weight 0.001 --control_mode "position" --train_universal_policy True  --scale_range "[0.5, 1.5]"
+
+
+
+
+
+
+
+
+
+To train a Kinematics Domain Randomization Policy (Kin-DR):
+
+python train_policy.py --env-name "QuadrupedBulletDesRandEnv-v4" --algo ppo --use-gae --log-interval 10  --num-steps 1500  --num-processes 8  --lr 3e-4 --entropy-coef 0 --ppo-epoch 10 --num-mini-batch 32 --gamma 0.99  --gae-lambda 0.95 --num-env-steps 10000000 --use-linear-lr-decay   --clip-param 0.2  --use-proper-time-limits --save-dir  test --seed 1 --act_noise 1 --obs_noise 1   --max_tar_vel 20  --energy_weight 0.1 --ab 4.5 --q_pen_weight 0.35  --dq_pen_weight 0.001 --control_mode "position" --train_universal_policy True  --scale_range "[0.5, 1.5]"
+
+
+
+
+
+
+
+
+
+To train a Dynamics Domain Randomization Policy (Dyn-DR):
+
+python train_policy.py --env-name "QuadrupedBulletDesRandEnv-v4" --algo ppo --use-gae --log-interval 10  --num-steps 1500  --num-processes 8  --lr 3e-4 --entropy-coef 0 --ppo-epoch 10 --num-mini-batch 32 --gamma 0.99  --gae-lambda 0.95 --num-env-steps 10000000 --use-linear-lr-decay   --clip-param 0.2  --use-proper-time-limits --save-dir  test --seed 1 --act_noise 1 --obs_noise 1   --max_tar_vel 20  --energy_weight 0.1 --ab 4.5 --q_pen_weight 0.35  --dq_pen_weight 0.001 --control_mode "position" --scales "[1.0,1.0,1.0,1.0]" --train_universal_policy False --randomization_train True
