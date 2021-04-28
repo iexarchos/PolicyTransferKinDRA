@@ -36,7 +36,7 @@ import time
 import gym, gym.utils.seeding
 import numpy as np
 import math
-from gan import utils
+from a2c_ppo_acktr import utils
 import pybullet
 import pybullet as p
 import os

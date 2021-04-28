@@ -1,4 +1,25 @@
-import h5py
+#  MIT License
+#
+#  Copyright (c) 2017 Ilya Kostrikov
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -6,7 +27,7 @@ import torch.nn.functional as F
 import torch.utils.data
 from torch import autograd
 
-from baselines.common.running_mean_std import RunningMeanStd
+from a2c_ppo_acktr.baselines.common.running_mean_std import RunningMeanStd
 
 
 class Discriminator(nn.Module):
@@ -61,7 +82,7 @@ class Discriminator(nn.Module):
         policy_data_generator = rollouts.feed_forward_generator(
             None, mini_batch_size=expert_loader.batch_size)
 
-        loss = 0
+        loss = expert_loss_t = policy_loss_t = 0
         n = 0
         for expert_batch, policy_batch in zip(expert_loader,
                                               policy_data_generator):
@@ -88,80 +109,25 @@ class Discriminator(nn.Module):
                                              policy_state, policy_action)
 
             loss += (gail_loss + grad_pen).item()
+            expert_loss_t += expert_loss.item()
+            policy_loss_t += policy_loss.item()
             n += 1
 
             self.optimizer.zero_grad()
             (gail_loss + grad_pen).backward()
             self.optimizer.step()
-        return loss / n
+        return loss / n, expert_loss_t / n, policy_loss_t / n
 
-    def predict_reward(self, state, action, gamma, masks, update_rms=True):
+    def predict_reward(self, state, action, gamma, masks):
         with torch.no_grad():
             self.eval()
             d = self.trunk(torch.cat([state, action], dim=1))
             s = torch.sigmoid(d)
-            reward = s.log() - (1 - s).log()
+            reward = - (1 - s + 1e-7).log()
             if self.returns is None:
                 self.returns = reward.clone()
-
-            if update_rms:
-                self.returns = self.returns * masks * gamma + reward
-                self.ret_rms.update(self.returns.cpu().numpy())
-
-            return reward / np.sqrt(self.ret_rms.var[0] + 1e-8)
-
-
-class ExpertDataset(torch.utils.data.Dataset):
-    def __init__(self, file_name, num_trajectories=4, subsample_frequency=20):
-        all_trajectories = torch.load(file_name)
-        
-        perm = torch.randperm(all_trajectories['states'].size(0))
-        idx = perm[:num_trajectories]
-
-        self.trajectories = {}
-        
-        # See https://github.com/pytorch/pytorch/issues/14886
-        # .long() for fixing bug in torch v0.4.1
-        start_idx = torch.randint(
-            0, subsample_frequency, size=(num_trajectories, )).long()
-
-        for k, v in all_trajectories.items():
-            data = v[idx]
-
-            if k != 'lengths':
-                samples = []
-                for i in range(num_trajectories):
-                    samples.append(data[i, start_idx[i]::subsample_frequency])
-                self.trajectories[k] = torch.stack(samples)
             else:
-                self.trajectories[k] = data // subsample_frequency
+                self.returns = self.returns * gamma * masks + reward
+            return reward, self.returns
 
-        self.i2traj_idx = {}
-        self.i2i = {}
-        
-        self.length = self.trajectories['lengths'].sum().item()
 
-        traj_idx = 0
-        i = 0
-
-        self.get_idx = []
-        
-        for j in range(self.length):
-            
-            while self.trajectories['lengths'][traj_idx].item() <= i:
-                i -= self.trajectories['lengths'][traj_idx].item()
-                traj_idx += 1
-
-            self.get_idx.append((traj_idx, i))
-
-            i += 1
-            
-            
-    def __len__(self):
-        return self.length
-
-    def __getitem__(self, i):
-        traj_idx, i = self.get_idx[i]
-
-        return self.trajectories['states'][traj_idx][i], self.trajectories[
-            'actions'][traj_idx][i]

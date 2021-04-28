@@ -1,31 +1,43 @@
-import math
+#  MIT License
+#
+#  Copyright (c) 2017 Ilya Kostrikov
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from a2c_ppo_acktr.utils import AddBias, init
 
-"""
-Modify standard PyTorch distributions so they are compatible with this code.
-"""
-
-#
-# Standardize distribution interfaces
-#
 
 # Categorical
 class FixedCategorical(torch.distributions.Categorical):
-    def sample(self):
+    def sample(self, sample_shape=torch.Size()):
         return super().sample().unsqueeze(-1)
 
     def log_probs(self, actions):
         return (
             super()
-            .log_prob(actions.squeeze(-1))
-            .view(actions.size(0), -1)
-            .sum(-1)
-            .unsqueeze(-1)
+                .log_prob(actions.squeeze(-1))
+                .view(actions.size(0), -1)
+                .sum(-1)
+                .unsqueeze(-1)
         )
 
     def mode(self):
@@ -37,8 +49,8 @@ class FixedNormal(torch.distributions.Normal):
     def log_probs(self, actions):
         return super().log_prob(actions).sum(-1, keepdim=True)
 
-    def entrop(self):
-        return super.entropy().sum(-1)
+    def entropy(self):
+        return super().entropy().sum(-1)
 
     def mode(self):
         return self.mean
@@ -47,7 +59,7 @@ class FixedNormal(torch.distributions.Normal):
 # Bernoulli
 class FixedBernoulli(torch.distributions.Bernoulli):
     def log_probs(self, actions):
-        return super.log_prob(actions).view(actions.size(0), -1).sum(-1).unsqueeze(-1)
+        return super().log_prob(actions).view(actions.size(0), -1).sum(-1).unsqueeze(-1)
 
     def entropy(self):
         return super().entropy().sum(-1)
@@ -78,13 +90,10 @@ class DiagGaussian(nn.Module):
         super(DiagGaussian, self).__init__()
 
         init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.
-                               constant_(x, 0))
+                               constant_(x, 0), gain=0.02)
 
         self.fc_mean = init_(nn.Linear(num_inputs, num_outputs))
-        self.logstd = AddBias(torch.zeros(num_outputs))
-
-    def reset_variance(self, num_outputs, log_std):
-        self.logstd = AddBias(torch.ones(num_outputs) * log_std)
+        self.logstd = AddBias(torch.ones(num_outputs) * -0.0)
 
     def forward(self, x):
         action_mean = self.fc_mean(x)

@@ -5,7 +5,7 @@ import pybullet_data
 import time
 import gym, gym.utils.seeding, gym.spaces
 import numpy as np
-from gan import utils
+from a2c_ppo_acktr import utils
 from collections import deque
 
 import os

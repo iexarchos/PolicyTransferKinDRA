@@ -1,3 +1,25 @@
+#  MIT License
+#
+#  Copyright (c) 2017 Ilya Kostrikov
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
+
 import os
 
 import gym
@@ -5,12 +27,12 @@ import numpy as np
 import torch
 from gym.spaces.box import Box
 
-from baselines import bench
-from baselines.common.atari_wrappers import make_atari, wrap_deepmind
-from baselines.common.vec_env import VecEnvWrapper
-from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
-from baselines.common.vec_env.vec_normalize import \
+from a2c_ppo_acktr.baselines import bench
+# from a2c_ppo_acktr.baselines.common.atari_wrappers import make_atari, wrap_deepmind
+from a2c_ppo_acktr.baselines.common.vec_env import VecEnvWrapper
+from a2c_ppo_acktr.baselines.common.vec_env.dummy_vec_env import DummyVecEnv
+from a2c_ppo_acktr.baselines.common.vec_env.shmem_vec_env import ShmemVecEnv
+from a2c_ppo_acktr.baselines.common.vec_env.vec_normalize import \
     VecNormalize as VecNormalize_
 
 try:
@@ -29,7 +51,7 @@ except ImportError:
     pass
 
 
-def make_env(env_id, seed, rank, log_dir, allow_early_resets,**kwargs):
+def make_env(env_id, seed, rank, log_dir, allow_early_resets, **kwargs):
     def _thunk():
         if env_id.startswith("dm"):
             _, domain, task = env_id.split('.')
@@ -40,9 +62,11 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets,**kwargs):
         is_atari = hasattr(gym.envs, 'atari') and isinstance(
             env.unwrapped, gym.envs.atari.atari_env.AtariEnv)
         if is_atari:
-            env = make_atari(env_id)
+            raise NotImplementedError("atari")
 
         env.seed(seed + rank)
+
+        obs_shape = env.observation_space.shape
 
         if str(env.__class__.__name__).find('TimeLimit') >= 0:
             env = TimeLimitMask(env)
@@ -54,13 +78,15 @@ def make_env(env_id, seed, rank, log_dir, allow_early_resets,**kwargs):
                 allow_early_resets=allow_early_resets)
 
         if is_atari:
-            if len(env.observation_space.shape) == 3:
-                env = wrap_deepmind(env)
-        elif len(env.observation_space.shape) == 3:
-            raise NotImplementedError(
-                "CNN models work only for atari,\n"
-                "please use a custom wrapper for a custom pixel input env.\n"
-                "See wrap_deepmind for an example.")
+            raise NotImplementedError("atari")
+        #        if is_atari:
+        #            if len(env.observation_space.shape) == 3:
+        #                env = wrap_deepmind(env)
+        #        elif len(env.observation_space.shape) == 3:
+        #            raise NotImplementedError(
+        #                "CNN models work only for atari,\n"
+        #                "please use a custom wrapper for a custom pixel input env.\n"
+        #                "See wrap_deepmind for an example.")
 
         # If the input has shape (W,H,3), wrap for PyTorch convolutions
         obs_shape = env.observation_space.shape
@@ -82,12 +108,12 @@ def make_vec_envs(env_name,
                   num_frame_stack=None,
                   **kwargs):
     envs = [
-        make_env(env_name, seed, i, log_dir, allow_early_resets,**kwargs)
+        make_env(env_name, seed, i, log_dir, allow_early_resets, **kwargs)
         for i in range(num_processes)
     ]
 
     if len(envs) > 1:
-        envs = ShmemVecEnv(envs, context='fork')
+        envs = ShmemVecEnv(envs, context='spawn')
     else:
         envs = DummyVecEnv(envs)
 
@@ -95,6 +121,7 @@ def make_vec_envs(env_name,
         if gamma is None:
             envs = VecNormalize(envs, ret=False, ob=False)
         else:
+            # envs = VecNormalize(envs, gamma=gamma, ret=False)
             envs = VecNormalize(envs, gamma=gamma, ob=False)
 
     envs = VecPyTorch(envs, device)
@@ -221,7 +248,7 @@ class VecPyTorchFrameStack(VecEnvWrapper):
 
         if device is None:
             device = torch.device('cpu')
-        self.stacked_obs = torch.zeros((venv.num_envs, ) +
+        self.stacked_obs = torch.zeros((venv.num_envs,) +
                                        low.shape).to(device)
 
         observation_space = gym.spaces.Box(
@@ -231,7 +258,7 @@ class VecPyTorchFrameStack(VecEnvWrapper):
     def step_wait(self):
         obs, rews, news, infos = self.venv.step_wait()
         self.stacked_obs[:, :-self.shape_dim0] = \
-            self.stacked_obs[:, self.shape_dim0:]
+            self.stacked_obs[:, self.shape_dim0:].clone()
         for (i, new) in enumerate(news):
             if new:
                 self.stacked_obs[i] = 0

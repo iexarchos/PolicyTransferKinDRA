@@ -1,3 +1,25 @@
+#  MIT License
+#
+#  Copyright (c) 2017 Ilya Kostrikov
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
+
 import math
 
 import torch
@@ -6,6 +28,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from a2c_ppo_acktr.utils import AddBias
+
 
 # TODO: In order to make this code faster:
 # 1) Implement _extract_patches as a single cuda kernel
@@ -181,7 +204,7 @@ class KFACOptimizer(optim.Optimizer):
             classname = module.__class__.__name__
             if classname in self.known_modules:
                 assert not ((classname in ['Linear', 'Conv2d']) and module.bias is not None), \
-                                    "You must have a bias as a separate layer"
+                    "You must have a bias as a separate layer"
 
                 self.modules.append(module)
                 module.register_forward_pre_hook(self._save_input)
@@ -220,7 +243,7 @@ class KFACOptimizer(optim.Optimizer):
 
             v1 = self.Q_g[m].t() @ p_grad_mat @ self.Q_a[m]
             v2 = v1 / (
-                self.d_g[m].unsqueeze(1) * self.d_a[m].unsqueeze(0) + la)
+                    self.d_g[m].unsqueeze(1) * self.d_a[m].unsqueeze(0) + la)
             v = self.Q_g[m] @ v2 @ self.Q_a[m].t()
 
             v = v.view(p.grad.data.size())
